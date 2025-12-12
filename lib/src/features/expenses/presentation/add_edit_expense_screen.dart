@@ -1,11 +1,12 @@
 import 'package:currency_converter/currency.dart';
+import 'package:expense_tracker/src/core/di/dependency_injection.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:expense_tracker/src/features/expenses/data/category.dart';
 import 'package:expense_tracker/src/features/expenses/data/expense_model.dart';
-import 'package:expense_tracker/src/features/expenses/providers/expense_providers.dart';
 import 'package:expense_tracker/src/features/expenses/presentation/widgets/util.dart';
 import 'package:expense_tracker/src/features/expenses/services/currency_service.dart';
 
@@ -21,57 +22,59 @@ class AddEditExpenseScreen extends ConsumerStatefulWidget {
 
 class _AddEditExpenseScreenState extends ConsumerState<AddEditExpenseScreen> {
   final _formKey = GlobalKey<FormState>();
-  String? _title;
-  String? _amountText;
-  String _category = 'Food';
-  Currency _currency = Currency.aed;
+  AsyncValue<List<Expense>> get expenseStore => ref.read(expensesProvider);
+  final CurrencyService _currencyService = CurrencyService();
+  String _title = '';
+  String _amountText = '';
+  Category _category = .food;
+  Currency _currency = .aed;
 
   @override
   void initState() {
     super.initState();
-    if (widget.expenseId != null) {
-      final expense = ref
-          .read(expensesProvider)
-          .valueOrNull
-          ?.findByExpenseId(widget.expenseId!);
-      _title = expense?.title;
-      _amountText = expense?.amount.toString();
-      _category = expense?.category ?? 'Food';
-      _currency = expense?.currency ?? Currency.aed;
-    }
+    _loadExistingExpense();
   }
+
+  Expense? get expense {
+    return widget.expenseId.flatMap(expenseStore.value?.findByExpenseId);
+  }
+
+  void _loadExistingExpense() {
+    expense.flatMap((e) {
+      _title = e.title;
+      _amountText = e.amount.toString();
+      _category = e.category;
+      _currency = e.currency;
+    });
+  }
+
+  bool get isEditing => expense != null;
+  bool get isSaveDisabled =>
+      _title.trim().isEmpty || double.tryParse(_amountText.trim()) == null;
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      navigationBar: CupertinoNavigationBar(
-        middle: Text(widget.expenseId == null ? 'Add Expense' : 'Edit Expense'),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: _submit,
-          child: const Text('Save'),
+    return Form(
+      key: _formKey,
+      child: CupertinoPageScaffold(
+        navigationBar: CupertinoNavigationBar(
+          middle: Text(isEditing ? 'Edit Expense' : 'Add Expense'),
+          trailing: CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: isSaveDisabled ? null : _save,
+            child: const Text('Save'),
+          ),
         ),
-      ),
-      child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          children: [
-            Form(
-              key: _formKey,
-              autovalidateMode: AutovalidateMode.onUnfocus,
-              child: CupertinoFormSection.insetGrouped(
+        child: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            children: [
+              CupertinoFormSection.insetGrouped(
                 children: [
                   CupertinoTextFormFieldRow(
                     initialValue: _title,
                     placeholder: 'Title',
-                    textInputAction: TextInputAction.next,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Title is required';
-                      }
-                      return null;
-                    },
-                    onChanged: (value) => _title = value,
+                    onChanged: (value) => setState(() => _title = value),
                   ),
                   CupertinoTextFormFieldRow(
                     initialValue: _amountText,
@@ -79,96 +82,70 @@ class _AddEditExpenseScreenState extends ConsumerState<AddEditExpenseScreen> {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    prefix: Text(
-                      _currency.symbol,
-                      style: TextStyle(
-                        fontFamily: _currency == Currency.aed
-                            ? 'CurrencySymbols'
-                            : 'Cupertino',
-                        fontSize: 20,
-                      ),
-                    ),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(
-                        RegExp(
-                          r'^\d*\.?\d{0,2}$',
-                        ), // allow only digits and decimal point
-                      ),
-                    ],
-                    textInputAction: TextInputAction.done,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Amount is required';
-                      }
-                      final parsed = double.tryParse(value.trim());
-                      if (parsed == null) {
-                        return 'Enter a valid number';
-                      }
-                      if (parsed <= 0) {
-                        return 'Amount must be positive';
-                      }
-                      return null;
-                    },
-                    onChanged: (value) => _amountText = value,
+                    validator: numberValidator,
+                    onChanged: (value) => setState(() => _amountText = value),
                   ),
                   CupertinoListTile.notched(
                     title: const Text('Currency'),
-                    additionalInfo: Text(_currency.name.toUpperCase()),
+                    additionalInfo: Text(
+                      _currency.symbol.toUpperCase(),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontFamily: _currency == .aed
+                            ? 'CurrencySymbols'
+                            : null,
+                      ),
+                    ),
                     trailing: const CupertinoListTileChevron(),
                     onTap: _showCurrencyPicker,
                   ),
                   CupertinoListTile.notched(
                     title: const Text('Category'),
-                    additionalInfo: Text(_category),
+                    additionalInfo: Text(_category.displayName),
                     trailing: const CupertinoListTileChevron(),
                     onTap: _showCategoryPicker,
                   ),
                 ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Future<void> _submit() async {
-    final valid = _formKey.currentState?.validate() ?? false;
-    if (!valid) return;
+  Future<void> _save() async {
     //TODO: pass your preferred currency to the convert method
-    final amount = await ref
-        .read(currencyServiceProvider)
-        .convert(
-          amount: double.parse(_amountText?.trim() ?? '0'),
-          from: _currency,
-        );
+    final parsedAmount = double.tryParse(_amountText.trim());
+    if (parsedAmount == null) {
+      return;
+    }
+    final amount = await _currencyService.convert(
+      amount: parsedAmount,
+      from: _currency,
+      to: .usd,
+    );
+    //TODO: pass your preferred currency to the expense model
     final expense = Expense(
       id: widget.expenseId ?? const Uuid().v4(),
-      title: _title?.trim() ?? '',
+      title: _title.trim(),
       amount: amount,
       date: DateTime.now(),
-      //TODO: pass your preferred currency to the expense model
-      currency: Currency.usd,
       category: _category,
+      currency: .usd,
     );
-    if (mounted) {
-      if (widget.expenseId == null) {
-        ref.read(expensesProvider.notifier).addExpense(expense);
-      } else {
-        ref.read(expensesProvider.notifier).updateExpense(expense);
-      }
-      Navigator.of(context).pop();
-    }
+    ref.read(expensesProvider.notifier).upsert(expense);
+    Navigator.of(context).pop();
   }
 
   void _showCategoryPicker() async {
-    const categories = ['Food', 'Transport', 'Entertainment', 'Other'];
-    final picked = await showActionSheetPicker<String>(
+    final categories = Category.values;
+    final picked = await showActionSheetPicker<Category>(
       context: context,
       title: 'Category',
       options: categories,
       selected: _category,
-      labelBuilder: (value) => value,
+      labelBuilder: (category) => category.displayName,
     );
     if (picked != null && mounted) {
       setState(() => _category = picked);

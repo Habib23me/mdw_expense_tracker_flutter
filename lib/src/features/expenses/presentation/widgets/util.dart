@@ -1,3 +1,4 @@
+import 'package:expense_tracker/src/features/expenses/data/expense_model.dart';
 import 'package:flutter/cupertino.dart';
 
 /// Generic Cupertino action sheet picker that returns the selected value.
@@ -47,4 +48,19 @@ Future<void> showCupertinoErrorDialog({
       ],
     ),
   );
+}
+
+String? numberValidator(String? value) =>
+    value == null || double.tryParse(value.trim()) == null
+    ? 'Enter a valid number'
+    : null;
+
+extension FlatMap<T> on T? {
+  E? flatMap<E>(E? Function(T)? f) => this != null ? f?.call(this!) : null;
+}
+
+extension ExpenseExtension on List<Expense> {
+  Expense? findByExpenseId(String expenseId) {
+    return firstWhere((e) => e.id == expenseId);
+  }
 }

@@ -1,4 +1,5 @@
 import 'package:currency_converter/currency.dart';
+import 'package:expense_tracker/src/features/expenses/data/category.dart';
 import 'package:expense_tracker/src/features/expenses/services/currency_service.dart';
 import 'package:json_annotation/json_annotation.dart';
 
@@ -10,7 +11,8 @@ class Expense {
   final String title;
   final double amount;
   final DateTime date;
-  final String category;
+  @CategoryJsonConverter()
+  final Category category;
   @CurrencyJsonConverter()
   final Currency currency;
 
@@ -27,10 +29,4 @@ class Expense {
       _$ExpenseFromJson(json);
 
   Map<String, dynamic> toJson() => _$ExpenseToJson(this);
-}
-
-extension ExpenseExtension on List<Expense> {
-  Expense? findByExpenseId(String expenseId) {
-    return firstWhere((e) => e.id == expenseId);
-  }
 }

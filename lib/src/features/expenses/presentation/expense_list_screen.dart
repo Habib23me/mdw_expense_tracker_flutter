@@ -1,9 +1,9 @@
+import 'package:expense_tracker/src/core/di/dependency_injection.dart';
 import 'package:expense_tracker/src/features/expenses/data/expense_model.dart';
+import 'package:expense_tracker/src/features/expenses/presentation/widgets/expense_row.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
-import 'package:expense_tracker/src/features/expenses/providers/expense_providers.dart';
 import 'package:expense_tracker/src/features/expenses/services/currency_service.dart';
 
 class ExpenseListScreen extends ConsumerWidget {
@@ -45,15 +45,8 @@ class ExpenseListScreen extends ConsumerWidget {
               // TODO: Wrap each tile in a swipeable (e.g. Dismissible or
               // Cupertino-specific alternative) that asks for confirmation
               // before calling a deleteExpense(id) notifier action.
-              CupertinoListTile.notched(
-                title: Text(expense.title),
-                subtitle: Text(
-                  '${expense.currency.symbol} ${expense.amount.toStringAsFixed(2)}',
-                ),
-                additionalInfo: Text(
-                  '${expense.currency.symbol} ${expense.amount.toStringAsFixed(2)}',
-                ),
-                trailing: const CupertinoListTileChevron(),
+              ExpenseRow(
+                expense: expense,
                 onTap: () => context.go('/edit/${expense.id}'),
               ),
           ],

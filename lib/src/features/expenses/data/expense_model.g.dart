@@ -11,7 +11,7 @@ Expense _$ExpenseFromJson(Map<String, dynamic> json) => Expense(
   title: json['title'] as String,
   amount: (json['amount'] as num).toDouble(),
   date: DateTime.parse(json['date'] as String),
-  category: json['category'] as String,
+  category: const CategoryJsonConverter().fromJson(json['category'] as String),
   currency: const CurrencyJsonConverter().fromJson(json['currency'] as String),
 );
 
@@ -20,6 +20,6 @@ Map<String, dynamic> _$ExpenseToJson(Expense instance) => <String, dynamic>{
   'title': instance.title,
   'amount': instance.amount,
   'date': instance.date.toIso8601String(),
-  'category': instance.category,
+  'category': const CategoryJsonConverter().toJson(instance.category),
   'currency': const CurrencyJsonConverter().toJson(instance.currency),
 };
